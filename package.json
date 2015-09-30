@@ -1,0 +1,10 @@
+{
+  "name": "daemon-scraper",
+  "version": "1.0.0",
+  "description": "",
+  "dependencies": {
+    "cheerio": "^0.19.0",
+    "express": "^4.13.3",
+    "request": "^2.63.0"
+  }
+}
