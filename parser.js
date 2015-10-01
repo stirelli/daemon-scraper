@@ -1,4 +1,5 @@
 var cheerio = require('cheerio');
+var _       = require('lodash');
 
 var Parser = function () {};
 
@@ -10,7 +11,7 @@ Parser.prototype.defaults = {
         ['image','property', 'og:image'],
         ['image','itemprop', 'image'],
         ['title','property', 'og:title'],
-        ['video','property', 'og:video'],
+        ['video','property', 'og:video:url'],
         ['video_type','property', 'og:video:type'],
         ['video_width','property', 'og:video:width'],
         ['video_height','property', 'og:video:height']
@@ -25,25 +26,24 @@ Parser.prototype.defaults = {
     logoWord         : 'logo'
 };
 
-//TODO: Preview Obj should be initialized on every request
-Parser.prototype.options = {
-    url: {},
-    preview: {
-        url : '',
+Parser.prototype.init = function() {
+    this.preview = {
+        url: '',
         images: [],
-        image : '',
-        title: '' ,
+        image: '',
+        title: '',
         description: ''
-    },
-    already: []
+    };
 };
 
 Parser.prototype.getPreview = function(data, uri)
 {
     var that = this;
-    var $ = cheerio.load(data);
+    if(!that.preview) {
+        throw 'Init method must be called first';
+    }
 
-    that.options.already.push(uri);
+    var $ = cheerio.load(data);
 
     var title  = "" ;
 
@@ -52,24 +52,25 @@ Parser.prototype.getPreview = function(data, uri)
         title = $(this).text();
     });
 
-    that.options.preview.title       = ( title || uri);
-    that.options.preview.url         = uri;
+    that.preview.title       = ( title || uri);
+    that.preview.url         = uri;
 
     $(data, '<head>').find('meta').each(function()
     {
         that.setMetaData($(this));
     });
 
-    //if(that.defaults.findDescription && !that.hasValue('description')) {
-    //    $(data, '<body>').find('p').each(function()
-    //    {
-    //        var text = $.trim($(this).text());
-    //        if(text.length > 3) {
-    //            that.options.preview.description = text;
-    //            return false;
-    //        }
-    //    });
-    //}
+    if(that.defaults.findDescription && !that.hasValue('description')) {
+        $(data, '<body>').find('p').each(function()
+        {
+            //var text = $.trim($(this).text());
+            var text = _.trim($(this).text());
+            if(text.length > 3) {
+                that.preview.description = text;
+                return false;
+            }
+        });
+    }
 
     //if(core.hasValue('image') && !core.isValidaImage(preview.image)) {
     //    preview.image = '';
@@ -89,7 +90,7 @@ Parser.prototype.getPreview = function(data, uri)
                     self.attr('id' ) && self.attr('id' ).search(that.defaults.logoWord, 'i')  != -1 ||
                     this.className   &&   this.className.search(that.defaults.logoWord, 'i')  != -1
                 ) {
-                    that.options.preview.image = $(this).attr('src');
+                    that.preview.image = $(this).attr('src');
                     return false;
                 }
 
@@ -101,7 +102,7 @@ Parser.prototype.getPreview = function(data, uri)
             images.each(function()
             {
                 if(isValidaImage($(this).attr('src'))) {
-                    that.options.preview.images.push($(this).attr('src'));
+                    that.preview.images.push($(this).attr('src'));
                 }
             });
         }
@@ -110,34 +111,36 @@ Parser.prototype.getPreview = function(data, uri)
     // prepare output
     var not   = 'undefined';
     var data  = {
-        title       : that.options.preview.title,
-        description : that.options.preview.description,
-        url         : that.options.preview.url,
-        video       : (typeof that.options.preview.video != not && that.options.preview.video.length > 0) ? {} : null
+        title       : that.preview.title,
+        description : that.preview.description,
+        url         : that.preview.url,
+        video       : (typeof that.preview.video != not && that.preview.video.length > 0) ? {} : null
     };
 
     if (data.video != null) {
         data.video = {
-            file  :   that.options.preview.video,
-            type  : (typeof that.options.preview.video_type   != not) ? that.options.preview.video_type  : '',
-            width : (typeof that.options.preview.video_width  != not) ? that.options.preview.video_width : '',
-            height: (typeof that.options.preview.video_height != not) ? that.options.preview.video_height :''
+            file  :   that.preview.video,
+            type  : (typeof that.preview.video_type   != not) ? that.preview.video_type  : '',
+            width : (typeof that.preview.video_width  != not) ? that.preview.video_width : '',
+            height: (typeof that.preview.video_height != not) ? that.preview.video_height :''
         }
     }
 
     //if (that.hasValue('image')){
-    //    preview.images.push(that.options.preview.image);
+    //    preview.images.push(that.preview.image);
     //    preview.image = '';
     //}
 
     //core.addImages();
+
+    return data;
 };
 
 Parser.prototype.setMetaData = function(val)
 {
     for (var index in this.defaults.meta) {
         var meta = this.defaults.meta[index];
-        this.options.preview[meta[0]] = (getValue(val,meta[1],meta[2])|| this.options.preview[meta[0]] );
+        this.preview[meta[0]] = (getValue(val,meta[1],meta[2])|| this.preview[meta[0]] );
     }
 };
 
@@ -146,11 +149,11 @@ Parser.prototype.setMetaData = function(val)
 //    var that = this;
 //    var images = [];
 //
-//    for (var index in that.options.preview.images) {
-//        var image = that.options.preview.images[index];
+//    for (var index in that.preview.images) {
+//        var image = that.preview.images[index];
 //
 //        if (!isAbsolute(image)) {
-//            var pLink    = new $.urlHelper.UriParser(that.options.preview.url);
+//            var pLink    = new $.urlHelper.UriParser(that.preview.url);
 //            var host     = pLink.url + pLink.subdomain + pLink.domain;
 //
 //            if (isPathAbsolute(image))
@@ -176,7 +179,7 @@ Parser.prototype.setMetaData = function(val)
 //};
 
 Parser.prototype.hasValue = function(section){
-    return (this.options.preview[section].length !== 0);
+    return (this.preview[section].length !== 0);
 };
 
 //TODO: FIX uriParser to work properly

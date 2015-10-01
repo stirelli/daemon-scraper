@@ -19,13 +19,21 @@ app.get('*', function(req, res) {
     };
 
     request(options, function (error, response, html) {
-        if (!error && response.statusCode == 200) {
-            p.getPreview(html, options.url);
+        var data;
+        try {
+            if (!error && response.statusCode == 200) {
+                p.init();
+                data = p.getPreview(html, options.url);
+            } else {
+                throw error.message;
+            }
+        } catch(err) {
+            data = {error: err};
+        } finally {
+            res.send(data);
         }
-
-        res.send(p.options);
     });
 });
 
-console.log('listening on localhost:'+port);
+console.log('listening on localhost:'+port+'\n');
 app.listen(port, '0.0.0.0');
