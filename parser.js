@@ -16,7 +16,6 @@ Parser.prototype.defaults = {
         ['video_width','property', 'og:video:width'],
         ['video_height','property', 'og:video:height']
     ],
-    findLogo         : false,
     findDescription  : true,
     matchNoData      : true,
     multipleImages   : true,
@@ -47,7 +46,7 @@ Parser.prototype.getPreview = function(data, uri)
 
     var title  = "" ;
 
-    $(data, '<head>').find('title').each(function()
+    $('head').find('title').each(function()
     {
         title = $(this).text();
     });
@@ -55,15 +54,14 @@ Parser.prototype.getPreview = function(data, uri)
     that.preview.title       = ( title || uri);
     that.preview.url         = uri;
 
-    $(data, '<head>').find('meta').each(function()
+    $('head').find('meta').each(function()
     {
         that.setMetaData($(this));
     });
 
     if(that.defaults.findDescription && !that.hasValue('description')) {
-        $(data, '<body>').find('p').each(function()
+        $('body').find('p').each(function()
         {
-            //var text = $.trim($(this).text());
             var text = _.trim($(this).text());
             if(text.length > 3) {
                 that.preview.description = text;
@@ -72,41 +70,33 @@ Parser.prototype.getPreview = function(data, uri)
         });
     }
 
-    //if(core.hasValue('image') && !core.isValidaImage(preview.image)) {
-    //    preview.image = '';
-    //}
+    var tmpImages = $('body').find('img');
+    var tmpArray = [];
 
-    if (!that.hasValue('image')) {
-        // meta tag has no images:
-
-        var images = $(data, '<body>').find('img');
-
-        if (that.defaults.findLogo) {
-            images.each(function()
-            {
+    if(tmpImages.length > 0) {
+        var searchLogo = true;
+        tmpImages.each(function()
+        {
+            if(isValidaImage($(this).attr('src'))) {
                 var self = $(this);
 
-                if (self.attr('src') && self.attr('src').search(that.defaults.logoWord, 'i')  != -1 ||
+                if (searchLogo &&
+                    self.attr('src') && self.attr('src').search(that.defaults.logoWord, 'i')  != -1 ||
                     self.attr('id' ) && self.attr('id' ).search(that.defaults.logoWord, 'i')  != -1 ||
-                    this.className   &&   this.className.search(that.defaults.logoWord, 'i')  != -1
-                ) {
-                    that.preview.image = $(this).attr('src');
-                    return false;
+                    this.className   &&   this.className.search(that.defaults.logoWord, 'i')  != -1)
+                {
+                    tmpArray.unshift($(this).attr('src'));
+                    searchLogo = false;
+                } else {
+                    tmpArray.push($(this).attr('src'));
                 }
-
-            });
-        }
-
-
-        if (!that.hasValue('image') && images.length > 0 ) {
-            images.each(function()
-            {
-                if(isValidaImage($(this).attr('src'))) {
-                    that.preview.images.push($(this).attr('src'));
-                }
-            });
-        }
+            }
+        });
     }
+
+    that.preview.images = _.uniq(tmpArray);
+
+    //core.addImages();
 
     // prepare output
     var not   = 'undefined';
@@ -114,6 +104,7 @@ Parser.prototype.getPreview = function(data, uri)
         title       : that.preview.title,
         description : that.preview.description,
         url         : that.preview.url,
+        images      : that.preview.images,
         video       : (typeof that.preview.video != not && that.preview.video.length > 0) ? {} : null
     };
 
@@ -125,13 +116,6 @@ Parser.prototype.getPreview = function(data, uri)
             height: (typeof that.preview.video_height != not) ? that.preview.video_height :''
         }
     }
-
-    //if (that.hasValue('image')){
-    //    preview.images.push(that.preview.image);
-    //    preview.image = '';
-    //}
-
-    //core.addImages();
 
     return data;
 };
@@ -224,7 +208,10 @@ var getValue = function(val,key, tag) {
 };
 
 var isValidaImage = function(image) {
-    return (image.indexOf('.php?') === -1);
+    if(image) {
+        return (image.indexOf('.php?') === -1);
+    }
+    return false;
 };
 
 var isPathAbsolute = function(path) {
